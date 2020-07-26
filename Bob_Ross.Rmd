@@ -1,0 +1,240 @@
+---
+title: "PCA and Classification of Bob Ross's Paintings"
+date: "`r Sys.Date()`"
+author: Petr Hrobař
+output:
+  github_document:
+    pandoc_args: --webtex
+  highlight: pygments
+editor_options: 
+  chunk_output_type: console
+---
+
+# Introduction
+
+In this example we shall apply Principal component analysis (PCA) and Clustering methods for classifying paintings by [Bob Ross.](https://cs.wikipedia.org/wiki/Bob_Ross) Data used for purposes of this analysis are comming from tidyverse community $\textbf{tidytuesday}$ project. See more infromations [here.](https://github.com/rfordatascience/tidytuesday)
+
+We are interested in dataset named $\textbf{Bob Ross - painting by the numbers}$. 
+Dataset as well as its description can be found [here.](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-08-06)
+
+
+```{r set knitr options, echo = FALSE}
+# set some knitr options
+knitr::opts_chunk$set(echo = T,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width=8, fig.height=5)
+```
+
+
+First, let's do some basic data cleaning:
+```{r}
+# packages
+library(tidyverse)
+library(reshape2)
+theme_set(theme_light())
+
+# Loading the data
+bob_ross <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-08-06/bob-ross.csv")
+
+# Data Cleaning
+df_cleaned <- 
+  bob_ross %>% 
+  janitor::clean_names() %>% 
+  gather(element, value, -title, -episode) %>% 
+  mutate(title = str_to_title(str_remove_all(title, '"')),
+         element = str_to_title(str_replace(element, "_", " "))) %>% 
+  extract(episode, c("season", "episode"), "S(.*)E(.*)",
+          convert = T) %>% 
+  arrange(season, episode) %>% 
+  filter(value == 1)
+
+
+df_cleaned %>% 
+  head()
+```
+
+Data are cleaned and gathered, i.e. each row is the element of painting e.g. "Beach", "Tree" etc, where we observe wheater one particular painting has perticulars elements. 
+
+# Principal Component Analysis.
+
+Principal component analysis is a Dimensionality reduction technique that has been around for almost a century now. It turns out that PCA is so popular it has been independently reinvendet multiple times. Here we provide basic math overview of technique and various approahces to computation itself.
+
+Let's say we have data matrix $D$ that is $n \times m$ matrix. Where $n$ is the number of observation and $m$ is the number of observed features (variables).
+Firstly, we standardize the data so that columns means are equal to zero. 
+
+Steps above can be perform in $\textbf{R}$ using following code:
+
+```{r}
+D <- df_cleaned %>% 
+  acast(title ~ element)
+
+D[c(1:10) ,c(25:35)]
+```
+
+Now we have created a data matrix $D$, where rows of the matrix are particular paintings and columns are indicading binary presence of the element in the painting. Now, we want to standardize the matrix and hence create a centered matrix $C$, where column's means are equal to zero.
+
+Formally, data centering can be written as:
+
+$$C_{ij} = D_{ij} - \hat{D}_{j}$$.
+
+Additionally, if each variables of data (columns of $D$) are measured on different units, we should not only subtract column means from each observation, but also devide each observation by associated column's standart deviation. This conversion proces is called the $\textbf{Z-standardization}$ and it is commontly used to transfort normal distribution to standart normal distribution. However, since all of our columns in data matrix are binary indicators of element presence, no variance transformations are required.
+
+```{r}
+# Centering the data - substracting columns means from each column
+C <- t(t(D) - colMeans(D))
+
+# Column means are now equal to zero.
+colMeans(C[ ,c(2, 4, 5, 10)])
+```
+
+### Mathematical Solution to PCA
+
+As mentioned above, PCA has multiple approaches to the solution. 
+We will focus on two solution that are at disposal. 
+
+* 1) Eigenvector and values decomposition of Variance-Covariance Matrix
+* 2) Singular value decompositon of Centered data Matrix
+
+First approach of solving PCA requires to have the $\textbf{Variance-Covariance Matrix}$ of (Centered) dataset. Using Centered data matrix we can calculate the variance-covariance matrix as: $$C^{T}C\frac{1}{n-1}$$
+
+After this step, we can calculate PCA as a eigenvector and eigenvalue decompositon of variance-covariance matrix.
+
+```{r}
+# Variance-Covariance Matrix
+COV <- (t(C) %*% C) * 1/(nrow(C) - 1)
+
+# eigenvectors and eigenvalues of covariance matrix
+PCA_eigen <- eigen(COV)
+
+# Weights of elements on first four PC space.
+PCA_eigen$vectors %>% 
+  as.data.frame() %>% 
+  mutate(elements = colnames(D)) %>% 
+  select(elements, PC1 = V1, PC2 =  V2, PC3 =  V3, PC4 = V4) %>% 
+  tibble() %>% 
+  head()
+```
+
+This approach was performed just to demenstrate basic algebra behind the PCA. 
+
+Second approach of solving PCA uses $\textbf{Singular Value Decomposition (SVD)}$.
+It turns out that computing variance-covariance matrix and then performing eigenvectors and eigenvalues caluclation is not necessarily the most computationally efficient way of performing PCA.
+
+Now let's use [SVD](https://en.wikipedia.org/wiki/Singular_value_decomposition) to obtain PCA results. Firstly, we take our center matrix $C$ and perform SVD.
+
+```{r}
+# SVD on center matrix C
+PCA_svd <- svd(C)
+
+# Weights of elements on first four PC space.
+PCA_svd %>% 
+  broom::tidy(matrix = "v") %>% 
+  filter(PC <= 4) %>% 
+  mutate(elements = colnames(D)[column]) %>% 
+  pivot_wider(names_from = PC,
+              names_prefix = "PC") %>% 
+  select(-column) %>% 
+  head()
+```
+
+So we can see that both results are equal. Quickly, we can use build-in function to confirm that the results are exactly whe same:
+
+```{r}
+# Build in function (Hastie)
+PCA_func <- prcomp(D, center = T)
+
+# Weights of elements on first four PC space.
+PCA_func$rotation %>%
+  as.data.frame() %>% 
+  mutate(elements = colnames(D)) %>% 
+  select(elements, PC1, PC2, PC3, PC4) %>% 
+  tibble() %>% 
+  head()
+```
+
+Since all the results are the same, we can from now on work only with one PCA object. Let's work with object we named *PCA_svd*. We are interested in what percentage of variability is explained by each component. 
+
+```{r}
+PCA_svd %>% 
+  broom::tidy(matrix = "d") %>% 
+  select(-std.dev) %>% 
+  gather(key, value, -PC) %>% 
+  ggplot(aes(PC, value, color = key)) + 
+  geom_line(size = 1) + 
+  geom_point(size = 2.5) + 
+  scale_y_continuous(labels = scales::percent_format()) + 
+  scale_x_continuous(breaks = c(seq(0, 66, by = 5))) + 
+  labs(x = "PC", 
+       y = "Percentage of variability explained", 
+       title = "Percentage of variability explained by each PC", 
+       color = "Type of measure")
+```
+
+As can be seen, using just 2 PCs we are able to explain about 27% of variablitity of elements presence. Using 3 PCs number of variability explained will increase to 37%. 
+
+Let's examine whether some form of clustering is present. 
+
+```{r}
+PCA_svd %>% 
+  broom::tidy(matrix = "v") %>% 
+  filter(PC <= 4) %>% 
+  mutate(elements = colnames(D)[column]) %>% 
+  pivot_wider(names_from = PC,
+              names_prefix = "PC") %>% 
+  select(-column) %>% 
+  ggplot(aes(PC1, PC2, label = elements)) + 
+  geom_point(color = "dodgerblue", size = 2) + 
+  geom_text(color = "gray21") + 
+  geom_hline(aes(yintercept = 0), lty = 2, color = "red") + 
+  geom_vline(aes(xintercept = 0), lty = 2, color = "red") + 
+  labs(title = "Element's Weights on PC1 and PC2 space")
+```
+
+Above we can see minor clustering of elements of the paintings that tend to appear together. For example, $Mountain, Snow, Winter$. Still a lot of variability is not explained using simple 2-dimensions. Now we can inspect what paintings tend to be more similiar:
+
+```{r}
+set.seed(2020)
+
+Paintings_clusters <- 
+  PCA_svd %>% 
+  broom::tidy(matrix = "u") %>% 
+  filter(PC <= 4) %>% 
+  mutate(painting = rownames(D)[row]) %>% 
+  pivot_wider(names_from = PC,
+              names_prefix = "PC") %>% 
+  select(painting, PC1, PC2) %>% 
+  filter(grepl("Winter's|Beach|Waves|Waterfall|sun|Sun", painting)) %>% 
+  mutate(color_element = 
+           case_when(
+             grepl("Winter's", painting) ~ "Winter Theme",
+             grepl("Beach", painting) ~ "Beach Theme",
+             grepl("Waves", painting) ~ "Beach Theme")) %>% 
+  filter(!is.na(color_element))
+
+Paintings_clusters %>% 
+  ggplot(aes(PC1, PC2, label = painting, color = color_element)) + 
+  geom_point() + 
+  geom_text(check_overlap = TRUE, size = 3) + 
+  geom_hline(aes(yintercept = 0), lty = 2, color = "red") + 
+  geom_vline(aes(xintercept = 0), lty = 2, color = "red") + 
+  labs(title = "Painting's clustering using first two Principal Components", 
+       subtitle = "We are inspecting themes of elements, e.g. Winter, beach, Sun etc.")
+```
+
+
+We can see that we can somewhat cluster paintings using PCA of painting's elements. Lets inspect some paintings here.
+
+```{r}
+Paintings_clusters %>% 
+  select(painting, color_element)
+
+Paintings_clusters %>% 
+acast(painting ~ color_element, margins = TRUE)
+
+
+
+
+
+
+```
