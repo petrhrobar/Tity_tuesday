@@ -1,0 +1,59 @@
+---
+title: "Palmer Penguins"
+date: "`r Sys.Date()`"
+author: Petr Hrobař
+output:
+  github_document:
+    pandoc_args: --webtex
+  highlight: pygments
+editor_options: 
+  chunk_output_type: console
+always_allow_html: true
+---
+
+# Introduction
+
+In this example we will use data from [tidytuesday project](https://github.com/rfordatascience/tidytuesday). 
+
+
+```{r set knitr options, echo = FALSE}
+# set some knitr options
+knitr::opts_chunk$set(echo = T,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.width=8, fig.height=5)
+```
+
+
+First, let's do some basic data cleaning:
+```{r}
+# packages
+library(tidyverse)
+library(reshape2)
+library(knitr)
+library(kableExtra)
+
+
+theme_set(theme_light())
+
+
+
+penguins_raw.csv <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-28/penguins_raw.csv') %>% 
+  janitor::clean_names()
+
+str(penguins_raw.csv)
+
+
+penguins_raw.csv %>% 
+  count(species, sort = T)
+
+
+penguins_raw.csv %>% 
+  filter(!is.na(sex)) %>% 
+  ggplot(aes(culmen_length_mm, color = species, fill = species)) + 
+  geom_density(alpha = 0.2) + 
+  facet_wrap(~sex)
+
+```
+
+
