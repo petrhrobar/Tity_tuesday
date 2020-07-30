@@ -8,6 +8,7 @@ output:
   highlight: pygments
 editor_options: 
   chunk_output_type: console
+always_allow_html: true
 ---
 
 # Introduction
@@ -32,6 +33,10 @@ First, let's do some basic data cleaning:
 # packages
 library(tidyverse)
 library(reshape2)
+library(knitr)
+library(kableExtra)
+
+
 theme_set(theme_light())
 
 # Loading the data
@@ -226,15 +231,37 @@ Paintings_clusters %>%
 We can see that we can somewhat cluster paintings using PCA of painting's elements. Lets inspect some paintings here.
 
 ```{r}
-Paintings_clusters %>% 
-  select(painting, color_element)
+Clusts <- 
+  Paintings_clusters %>% 
+  select(painting, color_element) %>% 
+  mutate(color_element = 
+           case_when(color_element == "Winter Theme" ~ 1,
+                     TRUE  ~ 2)) %>% 
+  pivot_wider(names_from = color_element, values_from = painting) %>% 
+  apply(2, unlist)
+  
 
-Paintings_clusters %>% 
-acast(painting ~ color_element, margins = TRUE)
-
-
-
-
-
-
+Clusts
 ```
+
+Now we can inspect how much similiar are each paintings within the clusters.
+
+### First cluster 
+
+ <img src="Bob_ross paintings/A Mild Winter's Day.png" align="middle" width="150" />
+ <img src="Bob_ross paintings/A Perfect Winter Day.png" align="middle" width="150" />
+ <img src="Bob_ross paintings/Winter Elegance.png" align="middle" width="150" />
+ <img src="Bob_ross paintings/Winter's Grace.png" align="middle" width="150" />
+ <img src="Bob_ross paintings/Winter Paradise.png" align="middle" width="150" />
+ <img src="Bob_ross paintings/Winter's Peace.png" align="middle" width="150" />
+
+### Second cluster
+<img src="Bob_ross paintings/A.png" align="middle" width="150" />
+<img src="Bob_ross paintings/B.png" align="middle" width="150" />
+<img src="Bob_ross paintings/C.png" align="middle" width="150" />
+<img src="Bob_ross paintings/D.png" align="middle" width="150" />
+<img src="Bob_ross paintings/E.png" align="middle" width="150" />
+<img src="Bob_ross paintings/F.png" align="middle" width="150" />
+
+# NOTE
+all painting used for purposes of this application of PCA are property of  ®Bob Ross. 
