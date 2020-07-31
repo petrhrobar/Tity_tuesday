@@ -1,4 +1,4 @@
-Palmer Penguins - Bootstraping and Logistic regression
+Palmer Penguins - Bootstraping
 ================
 Petr Hrobař
 2020-07-31
@@ -956,7 +956,8 @@ conf_intervals_original_data <-
   group_by(species, sex) %>% 
   summarise(mean = mean(culmen_length_mm),
             sd = sd(culmen_length_mm),
-            count = n()) %>% 
+            count = n(), 
+            sd = sd/(sqrt(count))) %>% 
   mutate(conf.low = mean - (qnorm(0.975) * sd),
          conf.high = mean + (qnorm(0.975) * sd))
 
@@ -966,7 +967,8 @@ conf_intervals_boot_data <-
   group_by(species, sex) %>% 
   summarise(mean = mean(culmen_length_mm),
             sd = sd(culmen_length_mm),
-            count = n()) %>% 
+            count = n(), 
+            sd = sd/(sqrt(count))) %>% 
   mutate(conf.low = mean - (qnorm(0.975) * sd),
          conf.high = mean + (qnorm(0.975) * sd))
 
@@ -980,13 +982,13 @@ ci_merged <-
 # levels(as.factor(ci_merged$distribution))
 # ci_merged$distribution = factor(ci_merged$distribution, levels = c("Original Data", "Bootstraped Sample estimation"))
 # 
-# ci_merged %>% 
-#   filter(sex == "Male") %>% 
-#   ggplot(aes(mean, species, color = species)) + 
-#   geom_point(size = 3) + 
-#   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), size = 1) + 
-#   facet_wrap(~distribution, ncol = 1) + 
-#   geom_vline(aes(xintercept = mean, color = species), lty = 2, size = 1) + 
+# ci_merged %>%
+#   filter(sex == "Male") %>%
+#   ggplot(aes(mean, species, color = species)) +
+#   geom_point(size = 3) +
+#   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), size = 1) +
+#   facet_wrap(~distribution, ncol = 1) +
+#   geom_vline(aes(xintercept = mean, color = species), lty = 2, size = 1) +
 #   labs(title = "Bootstraped ")
 ```
 
@@ -1012,7 +1014,7 @@ bind_rows(mle_vals, boot_vals) %>%
   geom_point() +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) + 
   labs(title = "Estimations of normal distribution expected values", 
-       subtitle = "Estimation of Man Adelei Culmen Lenght - MLE and Bootsraped almost identical")
+       subtitle = "Estimation of Man Adelei Culmen Lenght -  Bootsraped ")
 ```
 
 ![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
