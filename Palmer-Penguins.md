@@ -1,7 +1,7 @@
 Palmer Penguins - Bootstraping
 ================
 Petr Hrobař
-2020-07-31
+2020-08-01
 
 # Introduction
 
@@ -625,7 +625,6 @@ grouped_boot <-
   group_by(species, sex) %>% 
   nest()
 
-
 grouped_boot
 ```
 
@@ -663,12 +662,15 @@ boot_means <- function(df = df, n = 500, variable = "culmen_length_mm") {
   for (i in 1:n) {
     message(i)
     mean_i <- 
+      cbind(mean = 
       sample_n(df, size = nrow(df), replace = T) %>% 
-      pull(variable) %>% mean()
+      pull(variable) %>% mean(), 
+           sd = sample_n(df, size = nrow(df), replace = T) %>% 
+      pull(variable) %>% sd())
     
     # Save the results to the dataframe
     boot_means = rbind(boot_means, mean_i)
-    colnames(boot_means) = variable
+    #colnames(boot_means) = variable
   }
   return(boot_means)
 }
@@ -689,19 +691,27 @@ bootstrap_sample <-
   filter(species == "Adelie",
          sex == "Male") %>% 
   select(culmen_length_mm) %>% 
-  mutate(Type = "Before Bootstrap") %>% 
+  mutate(Type = "Before Bootstrap")%>% 
   bind_rows(penguins.csv %>% 
   filter(species == "Adelie",
          sex == "Male") %>% 
-  boot_means(., n = 2000) %>% 
+  boot_means(., n = 1000) %>% 
     mutate(Type = "After Bootstrap"))
 
-bootstrap_sample$Type = factor(bootstrap_sample$Type, levels = c("Before Bootstrap", "After Bootstrap"))
+gg_boot_hists <- 
+  bootstrap_sample %>% 
+  gather(key, value, -Type) %>% 
+  mutate(key = 
+           case_when(key == "culmen_length_mm" ~ "Sample distribution",
+                     key == "mean" ~ "Bootstraped mean",
+                     key == "sd" ~ "Bootstraped sd"))
 
-bootstrap_sample %>% 
-  ggplot(aes(culmen_length_mm)) + 
-  geom_histogram(aes(fill = Type)) + 
-  facet_wrap(~Type, scales = "free", ncol = 2) + 
+gg_boot_hists$key = factor(gg_boot_hists$key, levels = c("Sample distribution", "Bootstraped mean", "Bootstraped sd"))
+
+gg_boot_hists %>% 
+  ggplot(aes(value)) + 
+  geom_histogram(aes(fill = Type), bins = 20, color = "white") + 
+  facet_wrap(~key, scales = "free") + 
   labs(title = "Distribution of culmen length for Adelia species - Males only", 
        subtitle = "Before and after bootstraping samples")
 ```
@@ -710,34 +720,11 @@ bootstrap_sample %>%
 
 As can be seen, bootstrap distribution seems to be somewhat normally
 distributed. Now that we see power of bootstraping, let’s apply it to
-every single metrix: ![\\textbf{Body mass, Culmen depth, Culmen length,
+every single metrics: ![\\textbf{Body mass, Culmen depth, Culmen length,
 Flipper
 length}](https://latex.codecogs.com/png.latex?%5Ctextbf%7BBody%20mass%2C%20Culmen%20depth%2C%20Culmen%20length%2C%20Flipper%20length%7D
 "\\textbf{Body mass, Culmen depth, Culmen length, Flipper length}"), for
 each single subgroup (sex within the species).
-
-``` r
-boot <- 
-  grouped_boot %>% 
-  ungroup() %>% 
-  mutate(
-    boot_charactersitic = map(data, ~boot_means(df = ., n = 2000))) %>% 
-  unnest(boot_charactersitic) %>% 
-  select(-data)
-
-
-levels(boot$sex) = c("Female", "Male")
-boot$sex = factor(boot$sex, levels = c("Male", "Female"))
-
-boot %>%   
-  #filter(sex == "MALE") %>% 
-  ggplot(aes(culmen_length_mm)) + 
-  geom_density(aes(fill = species), alpha = 0.5) + 
-  facet_grid(~sex ~ species) + 
-  labs(title = "Are distributions of culmen length different for species and sex?", subtitle = "Bootstrapped samples used")
-```
-
-![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
 
 Using bootstraped distributions we can distinguish how are each metrics
 (presumably) distributed in the population. Since all values seem to be
@@ -751,8 +738,51 @@ a distribution of culmen lenghts (for perticular specie and sex).
 
 ``` r
 # Maximum likelihood estimation of parametrs of normal dist. 
+
+boot <- 
+  grouped_boot %>% 
+  mutate(dist_mle = map(data, ~MASS::fitdistr(pull(.), "normal")), 
+         tidy_mle = map(dist_mle, ~broom::tidy(.))) %>% 
+  ungroup() %>% 
+  mutate(
+    boot_charactersitic = map(data, ~boot_means(df = ., n = 1000))) %>% 
+  unnest(boot_charactersitic) %>% 
+  select(-data)
+
+
+levels(boot$sex) = c("Female", "Male")
+boot$sex = factor(boot$sex, levels = c("Male", "Female"))
+
+boot %>%   
+  unnest(tidy_mle) %>% 
+  #filter(sex == "MALE") %>% 
+  filter(term != "sd") %>% 
+  ggplot(aes(mean)) + 
+  geom_density(aes(fill = species), alpha = 0.5) + 
+  facet_grid(~sex ~ species) + 
+  geom_vline(aes(xintercept = estimate), lty = 2, color = "red") +
+  labs(title = "Are distributions of culmen length different for species and sex?", subtitle = "Bootstrapped sample's means")
+```
+
+![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
+
+``` r
+boot %>%   
+  unnest(tidy_mle) %>% 
+  #filter(sex == "MALE") %>% 
+  filter(term == "sd") %>% 
+  ggplot(aes(sd)) + 
+  geom_density(aes(fill = species), alpha = 0.5) + 
+  facet_grid(~sex ~ species) + 
+   geom_vline(aes(xintercept = estimate), lty = 2, color = "red") +
+  labs(title = "Are distributions of culmen length different for species and sex?", subtitle = "Bootstrapped sample's sd's")
+```
+
+![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-8-2.png)<!-- -->
+
+``` r
 dist_arg <- 
-  boot %>% 
+  penguins.csv %>% 
   filter(sex == "Male", 
          species == "Adelie") %>% 
   pull(culmen_length_mm) %>% 
@@ -804,13 +834,13 @@ mean
 
 <td style="text-align:right;">
 
-40.3851425
+40.39041
 
 </td>
 
 <td style="text-align:right;">
 
-0.0059731
+0.2646862
 
 </td>
 
@@ -826,13 +856,13 @@ sd
 
 <td style="text-align:right;">
 
-0.2671241
+2.26148
 
 </td>
 
 <td style="text-align:right;">
 
-0.0042236
+0.1871614
 
 </td>
 
@@ -846,7 +876,9 @@ sd
 boot %>% 
   filter(sex == "Male", 
          species == "Adelie") %>% 
-  mutate(`Normal Distribution` = rnorm(2000, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])) %>% 
+  select(-sd, -dist_mle, -tidy_mle) %>% 
+  mutate(`Normal Distribution` = rnorm(1000, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])) %>% 
+  rename(`Bootstrap mean` = mean) %>% 
   gather(key, value, -species, -sex) %>% 
   mutate(key = ifelse(key == "culmen_length_mm", "Empirical Distribution", key)) %>% 
   ggplot(aes(value)) + 
@@ -854,7 +886,7 @@ boot %>%
 labs(title = "Estimated distribution of Culmen Lenght (mm) for males of Adelie species",
        subtitle = "Normal distribution is assumed",
          fill = "distribution") + 
-  scale_x_continuous(breaks = c(seq(39, 44, by = 0.5)))
+  scale_x_continuous(breaks = c(seq(32, 46, by = 2)))
 ```
 
 ![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
@@ -867,9 +899,9 @@ specie has Culmen Lenght smaller or equal to some value, let’s say 40,
 basic test can be used.
 
   
-![P(X \\leq 40) = P(Z \\leq -1.45) = 0.074
-](https://latex.codecogs.com/png.latex?P%28X%20%5Cleq%2040%29%20%3D%20P%28Z%20%5Cleq%20-1.45%29%20%3D%200.074%20
-"P(X \\leq 40) = P(Z \\leq -1.45) = 0.074 ")  
+![P(X \\leq 40) = P(Z \\leq -0.176) = 0.43
+](https://latex.codecogs.com/png.latex?P%28X%20%5Cleq%2040%29%20%3D%20P%28Z%20%5Cleq%20-0.176%29%20%3D%200.43%20
+"P(X \\leq 40) = P(Z \\leq -0.176) = 0.43 ")  
 , where ![Z](https://latex.codecogs.com/png.latex?Z "Z") is Z-score of a
 standart normal distribution. See below:
 
@@ -895,17 +927,17 @@ zz1 <- pnorm(40, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])
 zz1
 ```
 
-    ## [1] 0.07467783
+    ## [1] 0.4314691
 
 Alternatively, we cancalculate what is a probability that randomly
 picked male penguin from Adelie specie has Culmen Lenght between 40.5
-and 41. Once again, quantiles of standart normal distribution can be
+and 45. Once again, quantiles of standart normal distribution can be
 used
 
   
 ![P(40.5 \\leq X
-\\leq 41)](https://latex.codecogs.com/png.latex?P%2840.5%20%5Cleq%20X%20%5Cleq%2041%29
-"P(40.5 \\leq X \\leq 41)")  
+\\leq 45)](https://latex.codecogs.com/png.latex?P%2840.5%20%5Cleq%20X%20%5Cleq%2045%29
+"P(40.5 \\leq X \\leq 45)")  
 :
 
 ``` r
@@ -915,27 +947,27 @@ dens <- density(z)
 
 data <- tibble(x = dens$x, y = dens$y) %>% 
     mutate(variable = case_when(
-      (x >= 40.5 & x <= 41) ~ "On",
+      (x >= 40.5 & x <= 45) ~ "On",
       TRUE ~ NA_character_))
 
 ggplot(data, aes(x, y)) + geom_line() +
   geom_area(data = filter(data, variable == 'On'), fill = '#00AFBB', alpha = 0.2) + 
   geom_vline(aes(xintercept = 40.5), lty = 2, color = "red") + 
-  geom_vline(aes(xintercept = 41), lty = 2, color = "red")
+  geom_vline(aes(xintercept = 45), lty = 2, color = "red")
 ```
 
 ![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
 
 ``` r
-zz2 <- pnorm(41, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2]) - 
+zz2 <- pnorm(45, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2]) - 
   pnorm(40.5, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])
 
 zz2
 ```
 
-    ## [1] 0.3229316
+    ## [1] 0.4599156
 
-Where area displayed above is equal to 0.3229. Using MLE estimation to
+Where area displayed above is equal to 0.4599. Using MLE estimation to
 obtain parameters of normal distribution is one approach that can be
 used. Alternatively, since we are working with bootstraped sample we can
 estimate distribution’s mean and standart deviation as a
@@ -956,65 +988,36 @@ conf_intervals_original_data <-
   group_by(species, sex) %>% 
   summarise(mean = mean(culmen_length_mm),
             sd = sd(culmen_length_mm),
-            count = n(), 
-            sd = sd/(sqrt(count))) %>% 
-  mutate(conf.low = mean - (qnorm(0.975) * sd),
-         conf.high = mean + (qnorm(0.975) * sd))
+            count = n(),
+            sd_est = sd/sqrt(count)) %>% 
+  mutate(conf.low = mean - (qnorm(0.975) * sd_est),
+         conf.high = mean + (qnorm(0.975) * sd_est)) %>% 
+   mutate(Method = "Sample Estimation")
 
-
-conf_intervals_boot_data <- 
-  boot %>% 
-  group_by(species, sex) %>% 
-  summarise(mean = mean(culmen_length_mm),
-            sd = sd(culmen_length_mm),
-            count = n(), 
-            sd = sd/(sqrt(count))) %>% 
-  mutate(conf.low = mean - (qnorm(0.975) * sd),
-         conf.high = mean + (qnorm(0.975) * sd))
-
-ci_merged <- 
-  conf_intervals_original_data %>% 
-  mutate(distribution = "Original Data") %>% 
-  bind_rows(conf_intervals_boot_data %>% 
-              mutate(distribution = "Bootstraped Sample estimation"))
   
+conf_intervals_MLE <- 
+  boot %>% 
+  ungroup() %>% 
+  unnest(tidy_mle) %>% 
+  select(species, sex, term, estimate, std.error) %>% 
+  distinct() %>% 
+  mutate(conf.low = estimate - (qnorm(0.975) * std.error),
+         conf.high = estimate + (qnorm(0.975) * std.error))
 
-# levels(as.factor(ci_merged$distribution))
-# ci_merged$distribution = factor(ci_merged$distribution, levels = c("Original Data", "Bootstraped Sample estimation"))
-# 
-# ci_merged %>%
-#   filter(sex == "Male") %>%
-#   ggplot(aes(mean, species, color = species)) +
-#   geom_point(size = 3) +
-#   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), size = 1) +
-#   facet_wrap(~distribution, ncol = 1) +
-#   geom_vline(aes(xintercept = mean, color = species), lty = 2, size = 1) +
-#   labs(title = "Bootstraped ")
-```
+conf_intervals_MLE <- 
+  conf_intervals_MLE %>% 
+  pivot_wider(values_from = estimate:conf.high, 
+              names_from = term) %>% 
+  select(species, sex, mean = estimate_mean, sd = estimate_sd,
+         conf.low = conf.low_mean, conf.high = conf.high_mean) %>% 
+  mutate(Method = "ML - Estimation")
 
-``` r
-# Estimated parametrs
-mle_vals <- 
-  dist_arg %>% 
-  select(-std.error) %>% 
-  pivot_wider(names_from = term, values_from = estimate) %>% 
-  mutate(distribution = "MLE - estimation")
 
-boot_vals <- 
-  ci_merged %>% 
-   filter(sex == "Male", 
-         species == "Adelie") %>% 
-  ungroup() %>%
-  select(mean, sd, distribution)
-
-bind_rows(mle_vals, boot_vals) %>%
-  mutate(conf.low = mean - (qnorm(0.975) * sd),
-         conf.high = mean + (qnorm(0.975) * sd)) %>% 
-  ggplot(aes(mean, distribution, color = distribution)) + 
-  geom_point() +
+bind_rows(conf_intervals_original_data, conf_intervals_MLE) %>% 
+  ggplot(aes(mean, species, color = Method)) + 
+  geom_point() + 
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) + 
-  labs(title = "Estimations of normal distribution expected values", 
-       subtitle = "Estimation of Man Adelei Culmen Lenght -  Bootsraped ")
+  facet_grid(~ Method ~ sex)
 ```
 
-![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
