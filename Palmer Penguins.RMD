@@ -220,7 +220,6 @@ boot %>%
   geom_vline(aes(xintercept = estimate), lty = 2, color = "red") +
   labs(title = "Are distributions of culmen length different for species and sex?", subtitle = "Bootstrapped sample's means")
 
-
 boot %>%   
   unnest(tidy_mle) %>% 
   #filter(sex == "MALE") %>% 
@@ -346,11 +345,10 @@ conf_intervals_MLE <-
 
 
 bind_rows(conf_intervals_original_data, conf_intervals_MLE) %>% 
-  ggplot(aes(mean, species, color = Method)) + 
+  ggplot(aes(mean, species, color = species)) + 
   geom_point() + 
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) + 
-  facet_grid(~ sex)
-
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) +
+  facet_grid(~Method~sex, scales = "free_y")
 ```
 
 

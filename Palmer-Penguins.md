@@ -745,7 +745,7 @@ boot <-
          tidy_mle = map(dist_mle, ~broom::tidy(.))) %>% 
   ungroup() %>% 
   mutate(
-    boot_charactersitic = map(data, ~boot_means(df = ., n = 1000))) %>% 
+    boot_charactersitic = map(data, ~boot_means(df = ., n = 2000))) %>% 
   unnest(boot_charactersitic) %>% 
   select(-data)
 
@@ -877,7 +877,7 @@ boot %>%
   filter(sex == "Male", 
          species == "Adelie") %>% 
   select(-sd, -dist_mle, -tidy_mle) %>% 
-  mutate(`Normal Distribution` = rnorm(1000, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])) %>% 
+  mutate(`Normal Distribution` = rnorm(2000, mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])) %>% 
   rename(`Bootstrap mean` = mean) %>% 
   gather(key, value, -species, -sex) %>% 
   mutate(key = ifelse(key == "culmen_length_mm", "Empirical Distribution", key)) %>% 
@@ -906,7 +906,7 @@ basic test can be used.
 standart normal distribution. See below:
 
 ``` r
-z <-  rnorm(1000,  mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])
+z <-  rnorm(3000,  mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])
 
 dens <- density(z)
 
@@ -941,7 +941,7 @@ used
 :
 
 ``` r
-z <-  rnorm(1000,  mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])
+z <-  rnorm(4000,  mean = dist_arg$estimate[1], sd = dist_arg$estimate[2])
 
 dens <- density(z)
 
@@ -1014,10 +1014,10 @@ conf_intervals_MLE <-
 
 
 bind_rows(conf_intervals_original_data, conf_intervals_MLE) %>% 
-  ggplot(aes(mean, species, color = Method)) + 
+  ggplot(aes(mean, species, color = species)) + 
   geom_point() + 
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) + 
-  facet_grid(~ Method ~ sex)
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) +
+  facet_grid(~Method~sex, scales = "free_y")
 ```
 
 ![](Palmer-Penguins_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
