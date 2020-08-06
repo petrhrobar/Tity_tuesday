@@ -1,7 +1,7 @@
 Palmer Penguins - Bootstraping
 ================
 Petr Hrobař
-2020-08-01
+2020-08-06
 
 # Introduction
 
@@ -632,12 +632,12 @@ grouped_boot
     ## # Groups:   species, sex [6]
     ##   species   sex    data             
     ##   <fct>     <fct>  <list>           
-    ## 1 Adelie    Male   <tibble [73 x 1]>
-    ## 2 Adelie    Female <tibble [73 x 1]>
-    ## 3 Gentoo    Female <tibble [58 x 1]>
-    ## 4 Gentoo    Male   <tibble [61 x 1]>
-    ## 5 Chinstrap Female <tibble [34 x 1]>
-    ## 6 Chinstrap Male   <tibble [34 x 1]>
+    ## 1 Adelie    Male   <tibble [73 × 1]>
+    ## 2 Adelie    Female <tibble [73 × 1]>
+    ## 3 Gentoo    Female <tibble [58 × 1]>
+    ## 4 Gentoo    Male   <tibble [61 × 1]>
+    ## 5 Chinstrap Female <tibble [34 × 1]>
+    ## 6 Chinstrap Male   <tibble [34 × 1]>
 
 An example of nested dataset can be observed. We are in fact working
 with not one big dataset but 6 smaller dataset at the same time.
